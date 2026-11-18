@@ -30,7 +30,9 @@
         "evidenceRefreshIntervalSeconds": { "type": "integer", "minimum": 1 },
         "evidenceStaleAfterSeconds": { "type": "integer", "minimum": 1 },
         "catalogEvidenceMaxAgeDays": { "type": "integer", "minimum": 1 },
-        "securityReportStaleAfterSeconds": { "type": "integer", "minimum": 1 }
+        "securityReportStaleAfterSeconds": { "type": "integer", "minimum": 1 },
+        "securityReportPageSize": { "type": "integer", "minimum": 1, "maximum": 500 },
+        "securitySbomLookupConcurrency": { "type": "integer", "minimum": 1, "maximum": 4 }
       }
     },
     "persistence": {

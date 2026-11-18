@@ -5,7 +5,7 @@ import ssl
 import urllib.error
 import urllib.request
 from collections.abc import Iterable
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 from .applications import build_application_components
 from .models import Component
@@ -64,6 +64,17 @@ class KubernetesAPI:
             return self.get(path)
         except RuntimeError:
             return {}
+
+    # continue_token is an opaque Kubernetes cursor, not a credential.
+    def list_page(  # nosec B107
+        self, path: str, limit: int, continue_token: str = ""
+    ) -> dict:
+        """Read one bounded Kubernetes list page without changing API context."""
+        query = {"limit": str(limit)}
+        if continue_token:
+            query["continue"] = continue_token
+        separator = "&" if "?" in path else "?"
+        return self.get(f"{path}{separator}{urlencode(query)}")
 
 
 class Collector:

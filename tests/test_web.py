@@ -10,6 +10,7 @@ from kubit.app import (
     WEB_ROOT,
     current_report,
     environment_flag,
+    require_collected_sbom_report,
     require_discovered_component,
 )
 from kubit.models import Component
@@ -125,8 +126,15 @@ class WebInterfaceTest(unittest.TestCase):
         self.assertIn("renderSecurity", (WEB_ROOT / "app.js").read_text())
         self.assertIn("values suppressed", (WEB_ROOT / "app.js").read_text())
         self.assertIn("sbomPackageMarkup", (WEB_ROOT / "app.js").read_text())
-        self.assertIn("View ${sbomPackages.length}", (WEB_ROOT / "app.js").read_text())
+        self.assertIn("Browse all ${item.sbom_components", (WEB_ROOT / "app.js").read_text())
+        self.assertIn("/api/v1/security/sbom-packages", (WEB_ROOT / "app.js").read_text())
+        self.assertIn("loadSbomPackages", (WEB_ROOT / "app.js").read_text())
+        self.assertIn("Search all packages", (WEB_ROOT / "app.js").read_text())
+        self.assertIn('class="sbom-detail-row ${group}"', (WEB_ROOT / "app.js").read_text())
+        self.assertIn('colspan="9">${sbomBrowserMarkup(item)}', (WEB_ROOT / "app.js").read_text())
         self.assertIn(".sbom-packages", (WEB_ROOT / "styles.css").read_text())
+        self.assertIn(".security-package-detail", (WEB_ROOT / "styles.css").read_text())
+        self.assertIn("grid-template-columns: auto minmax(0, 1fr) auto auto", (WEB_ROOT / "styles.css").read_text())
         self.assertIn('id="inventory-page-size"', (WEB_ROOT / "index.html").read_text())
         self.assertIn('id="security-page-size"', (WEB_ROOT / "index.html").read_text())
         self.assertEqual((WEB_ROOT / "index.html").read_text().count('<option value="25">25</option><option value="50">50</option><option value="100">100</option>'), 2)
@@ -206,6 +214,15 @@ class WebInterfaceTest(unittest.TestCase):
     def test_arbitrary_files_are_not_in_asset_allowlist(self):
         self.assertNotIn("/assets/../app.py", WEB_ASSETS)
         self.assertNotIn("/app.py", WEB_ASSETS)
+
+    def test_sbom_package_queries_are_limited_to_collected_reports(self):
+        state = State()
+        state.security["reports"] = [
+            {"report_type": "sbom", "namespace": "demo", "report_name": "demo-app"}
+        ]
+        require_collected_sbom_report(state, "demo", "demo-app")
+        with self.assertRaisesRegex(ValueError, "not present"):
+            require_collected_sbom_report(state, "demo", "invented")
 
 
 if __name__ == "__main__":

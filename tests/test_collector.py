@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import Mock
 
 from kubit.applications import build_application_components
 from kubit.collector import Collector, KubernetesAPI, _application_role
@@ -173,6 +174,16 @@ class CollectorSecurityTest(unittest.TestCase):
     def test_kubernetes_api_rejects_non_https_origin_before_reading_token(self):
         with self.assertRaisesRegex(ValueError, "HTTPS origin"):
             KubernetesAPI(base_url="file:///tmp/fake-api", token_path="/does/not/exist")
+
+    def test_kubernetes_list_page_encodes_opaque_continuation_token(self):
+        api = object.__new__(KubernetesAPI)
+        api.get = Mock(return_value={"items": []})
+
+        api.list_page("/apis/example/v1/reports", 50, "token+/= value")
+
+        api.get.assert_called_once_with(
+            "/apis/example/v1/reports?limit=50&continue=token%2B%2F%3D+value"
+        )
 
 
 class CollectorTest(unittest.TestCase):

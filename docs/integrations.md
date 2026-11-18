@@ -61,7 +61,7 @@ Its generated ClusterRole grants:
 | `batch` | `jobs` | `list` | batch workload inventory |
 | `apiextensions.k8s.io` | `customresourcedefinitions` | `list` | CRD inventory |
 | `argoproj.io` | `applications` | `list` | optional Argo CD grouping |
-| `aquasecurity.github.io` | four report kinds | `list` | optional Trivy security data |
+| `aquasecurity.github.io` | four report kinds | `list`; `get` for selected SBOMs | optional Trivy security data and bounded package browsing |
 
 The optional PostgreSQL connection uses a Kubernetes Secret but the Pod reads
 that Secret through a mounted volume or environment reference; the Kubit

@@ -90,6 +90,12 @@ Important defaults and all application environment controls are documented in
 `extraEnv`, and `values.schema.json` catches common type and range errors before
 an install.
 
+Trivy report collection requests bounded Kubernetes list pages through
+`config.securityReportPageSize`. Complete SBOM package browsing decodes only
+the selected live report and is bounded by
+`config.securitySbomLookupConcurrency`; the main report and retained scan
+history continue to store only the bounded summary.
+
 The default cache volume is `ReadWriteOnce`, so keep `replicaCount: 1` unless
 you disable persistence or supply a storage class/access mode that supports all
 replicas. The chart therefore defaults to `deploymentStrategy: Recreate` to

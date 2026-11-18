@@ -57,6 +57,10 @@ spec:
               value: {{ int .Values.config.catalogEvidenceMaxAgeDays | quote }}
             - name: SECURITY_REPORT_STALE_AFTER_SECONDS
               value: {{ int .Values.config.securityReportStaleAfterSeconds | quote }}
+            - name: SECURITY_REPORT_PAGE_SIZE
+              value: {{ int .Values.config.securityReportPageSize | quote }}
+            - name: SECURITY_SBOM_LOOKUP_CONCURRENCY
+              value: {{ int .Values.config.securitySbomLookupConcurrency | quote }}
             - name: ARGOCD_APPLICATIONS_ENABLED
               value: {{ .Values.integrations.argocd.enabled | quote }}
             - name: TRIVY_REPORTS_ENABLED

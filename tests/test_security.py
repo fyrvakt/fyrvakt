@@ -9,6 +9,7 @@ from kubit.security import (
     MAX_SBOM_COMPONENTS_PER_REPORT,
     REPORT_PATHS,
     SecurityCollector,
+    sbom_package_page,
 )
 
 
@@ -20,6 +21,9 @@ class FakeAPI:
         if path not in self.documents:
             raise RuntimeError(f"Kubernetes API {path} returned HTTP 404")
         return self.documents[path]
+
+    def list_page(self, path, limit, continue_token=""):
+        return self.get(path)
 
 
 class TransientAPI(FakeAPI):
@@ -39,9 +43,21 @@ class TransientAPI(FakeAPI):
         return super().get(path)
 
 
+class PaginatedAPI(FakeAPI):
+    def __init__(self, pages):
+        super().__init__()
+        self.pages = pages
+        self.requests = []
+
+    def list_page(self, path, limit, continue_token=""):
+        self.requests.append((path, limit, continue_token))
+        return self.pages.get((path, continue_token), {"items": []})
+
+
 def report_item(kind, name, report, container="app"):
     return {
         "metadata": {
+            "name": f"{name}-{container or 'workload'}",
             "namespace": "demo",
             "creationTimestamp": datetime.now(timezone.utc).isoformat(),
             "labels": {
@@ -228,6 +244,98 @@ class SecurityCollectorTest(unittest.TestCase):
         serialized = json.dumps(result)
         self.assertNotIn("do-not-export-hash", serialized)
         self.assertNotIn("do-not-export@example.test", serialized)
+
+    def test_collects_all_paginated_report_pages(self):
+        timestamp = datetime.now(timezone.utc).isoformat()
+        first = report_item(
+            "Deployment",
+            "first",
+            {"updateTimestamp": timestamp, "summary": {"criticalCount": 1}},
+        )
+        second = report_item(
+            "Deployment",
+            "second",
+            {"updateTimestamp": timestamp, "summary": {"highCount": 1}},
+        )
+        pages = {
+            (REPORT_PATHS["vulnerability"], ""): {
+                "items": [first],
+                "metadata": {"continue": "next-page"},
+            },
+            (REPORT_PATHS["vulnerability"], "next-page"): {"items": [second]},
+        }
+        api = PaginatedAPI(pages)
+
+        result = SecurityCollector(
+            api,
+            stale_after_seconds=3600,
+            retry_delay_seconds=0,
+            page_size=25,
+        ).collect([])
+
+        self.assertEqual(result["summary"]["reports"], 2)
+        self.assertEqual(result["summary"]["critical"], 1)
+        self.assertEqual(result["summary"]["high"], 1)
+        self.assertEqual(
+            api.requests[:2],
+            [
+                (REPORT_PATHS["vulnerability"], 25, ""),
+                (REPORT_PATHS["vulnerability"], 25, "next-page"),
+            ],
+        )
+
+    def test_discards_partial_report_type_when_pagination_token_repeats(self):
+        timestamp = datetime.now(timezone.utc).isoformat()
+        item = report_item(
+            "Deployment",
+            "partial",
+            {"updateTimestamp": timestamp, "summary": {"criticalCount": 1}},
+        )
+        pages = {
+            (REPORT_PATHS["vulnerability"], ""): {
+                "items": [item],
+                "metadata": {"continue": "repeated"},
+            },
+            (REPORT_PATHS["vulnerability"], "repeated"): {
+                "items": [],
+                "metadata": {"continue": "repeated"},
+            },
+        }
+
+        result = SecurityCollector(
+            PaginatedAPI(pages),
+            stale_after_seconds=3600,
+            retry_delay_seconds=0,
+        ).collect([])
+
+        self.assertEqual(result["summary"]["reports"], 0)
+        self.assertEqual(result["status"], "unknown")
+        self.assertTrue(any("repeated a pagination token" in error for error in result["errors"]))
+
+    def test_sbom_package_endpoint_pages_and_searches_all_sanitized_packages(self):
+        packages = [
+            {
+                "name": f"package-{index:03d}",
+                "version": "2.0" if index == 76 else "1.0",
+                "type": "library",
+                "purl": f"pkg:generic/package-{index:03d}",
+                "licenses": [{"license": {"id": "Apache-2.0"}}],
+                "hashes": [{"content": "do-not-return"}],
+            }
+            for index in range(120)
+        ]
+        path = "/apis/aquasecurity.github.io/v1alpha1/namespaces/demo/sbomreports/demo-app"
+        api = FakeAPI({path: {"report": {"components": {"components": packages}}}})
+
+        page = sbom_package_page(api, "demo", "demo-app", offset=50, limit=25)
+        searched = sbom_package_page(api, "demo", "demo-app", query="package-076")
+
+        self.assertEqual(page["total"], 120)
+        self.assertEqual(page["packages"][0]["name"], "package-050")
+        self.assertEqual(page["next_offset"], 75)
+        self.assertEqual(searched["matched"], 1)
+        self.assertEqual(searched["packages"][0]["version"], "2.0")
+        self.assertNotIn("do-not-return", json.dumps(page))
 
     def test_unavailable_crds_are_unknown_not_clean(self):
         result = SecurityCollector(FakeAPI(), stale_after_seconds=3600).collect([])

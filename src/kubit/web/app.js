@@ -502,7 +502,60 @@
   function sbomPackageMarkup(item) {
     const name = [item.group, item.name].filter(Boolean).join("/") || "Unnamed component";
     const metadata = [item.purl, ...(item.licenses || []).map((license) => `License: ${license}`)].filter(Boolean).join(" · ");
-    return `<li><span class="security-package-type">${escapeHtml(item.type || "package")}</span><span><strong>${escapeHtml(name)}</strong>${item.version ? ` <code>${escapeHtml(item.version)}</code>` : ""}${metadata ? `<small>${escapeHtml(metadata)}</small>` : ""}</span></li>`;
+    return `<li><span class="security-package-type">${escapeHtml(item.type || "package")}</span><span class="security-package-detail"><strong>${escapeHtml(name)}</strong>${item.version ? `<code>${escapeHtml(item.version)}</code>` : ""}${metadata ? `<small>${escapeHtml(metadata)}</small>` : ""}</span></li>`;
+  }
+
+  function sbomBrowserMarkup(item) {
+    if (!item.report_name || !item.namespace) return "";
+    return `<details class="security-findings sbom-packages sbom-browser" data-namespace="${escapeHtml(item.namespace)}" data-report="${escapeHtml(item.report_name)}" data-offset="0">
+      <summary>Browse all ${item.sbom_components || 0} SBOM components</summary>
+      <form class="sbom-search"><input type="search" name="q" maxlength="200" placeholder="Search all packages, versions, PURLs or licenses" aria-label="Search all SBOM packages"><button type="submit">Search</button></form>
+      <div class="sbom-package-results"><p class="sbom-package-state">Open this browser to load packages from Kubernetes.</p></div>
+      <div class="sbom-package-pagination">
+        <select class="sbom-page-size" aria-label="SBOM packages per page"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option></select>
+        <span class="sbom-page-info">Not loaded</span>
+        <button type="button" class="sbom-page-prev" disabled>Previous</button><button type="button" class="sbom-page-next" disabled>Next</button>
+      </div>
+    </details>`;
+  }
+
+  async function loadSbomPackages(browser, offset = 0) {
+    if (browser.dataset.loading === "true") return;
+    const results = browser.querySelector(".sbom-package-results");
+    const query = browser.querySelector('.sbom-search input[name="q"]').value.trim();
+    const limit = Number(browser.querySelector(".sbom-page-size").value) || 50;
+    const parameters = new URLSearchParams({
+      namespace: browser.dataset.namespace,
+      report: browser.dataset.report,
+      offset: String(Math.max(0, offset)),
+      limit: String(limit),
+      q: query
+    });
+    browser.dataset.loading = "true";
+    results.innerHTML = '<p class="sbom-package-state">Loading packages…</p>';
+    try {
+      const response = await fetch(`/api/v1/security/sbom-packages?${parameters}`, { headers: { Accept: "application/json" }, cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `request returned ${response.status}`);
+      browser.dataset.offset = String(data.offset || 0);
+      browser.dataset.loaded = "true";
+      results.innerHTML = data.packages.length
+        ? `<ul>${data.packages.map(sbomPackageMarkup).join("")}</ul>`
+        : '<p class="sbom-package-state">No packages match this search.</p>';
+      const first = data.packages.length ? data.offset + 1 : 0;
+      const last = data.offset + data.packages.length;
+      browser.querySelector(".sbom-page-info").textContent = query
+        ? `${first}–${last} of ${data.matched} matches · ${data.total} total`
+        : `${first}–${last} of ${data.total} packages`;
+      browser.querySelector(".sbom-page-prev").disabled = data.offset <= 0;
+      browser.querySelector(".sbom-page-next").disabled = data.next_offset === null;
+      browser.querySelector(".sbom-page-next").dataset.nextOffset = data.next_offset ?? "";
+    } catch (error) {
+      results.innerHTML = `<p class="sbom-package-state error">Unable to load packages: ${escapeHtml(error.message)}</p>`;
+      browser.querySelector(".sbom-page-info").textContent = "Load failed";
+    } finally {
+      browser.dataset.loading = "false";
+    }
   }
 
   function renderSecurity(data) {
@@ -533,8 +586,7 @@
     const wanted = byId("security-type").value;
     const visible = reports.filter((item) => {
       const findingText = (item.findings || []).flatMap((finding) => [finding.id, finding.package, finding.title]).join(" ");
-      const packageText = (item.sbom_packages || []).flatMap((pkg) => [pkg.group, pkg.name, pkg.version, pkg.type, pkg.purl, ...(pkg.licenses || [])]).join(" ");
-      const text = [item.namespace, item.workload_kind, item.workload_name, item.container, item.component, item.application, item.image, item.image_digest, findingText, packageText].join(" ").toLowerCase();
+      const text = [item.namespace, item.workload_kind, item.workload_name, item.container, item.component, item.application, item.image, item.image_digest, findingText].join(" ").toLowerCase();
       const matchesSeverity = securitySeverityFilter === "all"
         || (item.report_type === "vulnerability" && Number(item.summary?.[securitySeverityFilter] || 0) > 0);
       return (wanted === "all" || item.report_type === wanted) && matchesSeverity && text.includes(query);
@@ -572,14 +624,14 @@
         .join(" · ");
       const displayedFindingCount = item.findings_truncated ? `${findings.length} of ${total}` : String(findings.length);
       const details = findings.length ? `<details class="security-findings"><summary>View ${displayedFindingCount} prioritized finding${total === 1 ? "" : "s"}${displayedSeverities ? ` · ${displayedSeverities}` : ""}</summary><ul>${findings.map(securityFindingMarkup).join("")}</ul></details>` : "";
-      const sbomPackages = item.sbom_packages || [];
-      const sbomDetails = item.report_type === "sbom" && sbomPackages.length
-        ? `<details class="security-findings sbom-packages"><summary>View ${sbomPackages.length}${item.sbom_packages_truncated ? ` of ${item.sbom_components || sbomPackages.length}` : ""} SBOM components</summary><ul>${sbomPackages.map(sbomPackageMarkup).join("")}</ul></details>`
+      const isSbom = item.report_type === "sbom";
+      const sbomDetails = isSbom
+        ? `<tr class="sbom-detail-row ${group}"><td colspan="9">${sbomBrowserMarkup(item)}</td></tr>`
         : "";
       const digest = item.image_digest ? item.image_digest.replace(/^sha256:/, "").slice(0, 12) : "";
       const observedStatus = item.status || "unknown";
       const observedMeaning = securityObservedMeaning(observedStatus);
-      return `<tr class="security-row ${group}"><td><strong>${escapeHtml(item.workload_kind)} / ${escapeHtml(item.workload_name)}</strong><small>${escapeHtml([item.namespace, item.container, item.component || "unmatched inventory"].filter(Boolean).join(" · "))}</small>${details}${sbomDetails}</td><td>${escapeHtml(securityReportLabel(item.report_type))}<small>${escapeHtml(`${item.scanner?.name || "scanner unknown"} ${item.scanner?.version || ""}`)}</small></td><td class="security-image">${escapeHtml(item.image || "Not applicable")}<small>${escapeHtml(digest ? `sha256:${digest}` : "No digest reported")}</small></td><td class="security-count critical">${counts.critical || 0}</td><td class="security-count high">${counts.high || 0}</td><td>${counts.medium || 0}</td><td>${counts.low || 0}</td><td>${escapeHtml(additional)}</td><td><span class="status-pill ${group}" title="${escapeHtml(observedMeaning)}" aria-label="${escapeHtml(`${observedStatus}: ${observedMeaning}`)}">${escapeHtml(observedStatus)}</span><small>${escapeHtml(formatTimestamp(item.generated_at))}</small></td></tr>`;
+      return `<tr class="security-row ${group}${isSbom ? " has-sbom-detail" : ""}"><td><strong>${escapeHtml(item.workload_kind)} / ${escapeHtml(item.workload_name)}</strong><small>${escapeHtml([item.namespace, item.container, item.component || "unmatched inventory"].filter(Boolean).join(" · "))}</small>${details}</td><td>${escapeHtml(securityReportLabel(item.report_type))}<small>${escapeHtml(`${item.scanner?.name || "scanner unknown"} ${item.scanner?.version || ""}`)}</small></td><td class="security-image">${escapeHtml(item.image || "Not applicable")}<small>${escapeHtml(digest ? `sha256:${digest}` : "No digest reported")}</small></td><td class="security-count critical">${counts.critical || 0}</td><td class="security-count high">${counts.high || 0}</td><td>${counts.medium || 0}</td><td>${counts.low || 0}</td><td>${escapeHtml(additional)}</td><td><span class="status-pill ${group}" title="${escapeHtml(observedMeaning)}" aria-label="${escapeHtml(`${observedStatus}: ${observedMeaning}`)}">${escapeHtml(observedStatus)}</span><small>${escapeHtml(formatTimestamp(item.generated_at))}</small></td></tr>${sbomDetails}`;
     }).join("") : `<tr><td colspan="9" class="empty-state">${security.available ? "No Trivy reports match this filter." : "Trivy report APIs are unavailable; security state is unknown."}</td></tr>`;
   }
 
@@ -967,6 +1019,32 @@
   byId("security-active-filter-clear").addEventListener("click", () => {
     const activeButton = document.querySelector(`[data-security-severity="${securitySeverityFilter}"]`);
     if (activeButton) activeButton.click();
+  });
+  byId("security-body").addEventListener("toggle", (event) => {
+    const browser = event.target.closest(".sbom-browser");
+    if (browser && browser.open && browser.dataset.loaded !== "true") loadSbomPackages(browser, 0);
+  }, true);
+  byId("security-body").addEventListener("submit", (event) => {
+    const form = event.target.closest(".sbom-search");
+    if (!form) return;
+    event.preventDefault();
+    loadSbomPackages(form.closest(".sbom-browser"), 0);
+  });
+  byId("security-body").addEventListener("change", (event) => {
+    const select = event.target.closest(".sbom-page-size");
+    if (select) loadSbomPackages(select.closest(".sbom-browser"), 0);
+  });
+  byId("security-body").addEventListener("click", (event) => {
+    const browser = event.target.closest(".sbom-browser");
+    if (!browser) return;
+    if (event.target.closest(".sbom-page-prev")) {
+      const limit = Number(browser.querySelector(".sbom-page-size").value) || 50;
+      loadSbomPackages(browser, Math.max(0, Number(browser.dataset.offset || 0) - limit));
+    }
+    if (event.target.closest(".sbom-page-next")) {
+      const nextOffset = event.target.closest(".sbom-page-next").dataset.nextOffset;
+      if (nextOffset) loadSbomPackages(browser, Number(nextOffset));
+    }
   });
   byId("inventory-body").addEventListener("change", (event) => {
     const select = event.target.closest(".source-truth-select");

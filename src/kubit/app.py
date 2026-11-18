@@ -14,7 +14,7 @@ from .database import PostgresStore, configured_database_url
 from .engine import Engine
 from .metrics import render
 from .providers import ProviderManager, default_manager
-from .security import SecurityCollector, empty_security
+from .security import SecurityCollector, empty_security, sbom_package_page
 from .source_validation import SourceValidationBusy, SourceValidationError, SourceValidator
 from .upgrade import evaluate_kubernetes_target
 from .version import application_version
@@ -50,6 +50,10 @@ class State:
         self.ready = False
         self.last_success_timestamp = 0.0
         self.cluster_name = os.getenv("CLUSTER_NAME", "cluster")
+        sbom_concurrency = min(
+            max(int(os.getenv("SECURITY_SBOM_LOOKUP_CONCURRENCY", "1")), 1), 4
+        )
+        self.sbom_lookup_slots = threading.BoundedSemaphore(sbom_concurrency)
 
     def update(self, components, results, providers, rule_document, security, duration: float):
         with self.lock:
@@ -182,11 +186,24 @@ def require_discovered_component(state: State, value: str) -> str:
     return component
 
 
+def require_collected_sbom_report(state: State, namespace: str, report_name: str) -> None:
+    with state.lock:
+        found = any(
+            item.get("report_type") == "sbom"
+            and item.get("namespace") == namespace
+            and item.get("report_name") == report_name
+            for item in state.security.get("reports", [])
+        )
+    if not found:
+        raise ValueError("SBOM report is not present in the latest collected security inventory")
+
+
 def handler(
     state: State,
     auth: AuthService | None = None,
     secure_cookies: bool = True,
     source_validator: SourceValidator | None = None,
+    kubernetes_api_factory=KubernetesAPI,
 ):
     class Handler(BaseHTTPRequestHandler):
         server_version = "Kubit"
@@ -210,6 +227,40 @@ def handler(
             if request.path == "/api/v1/report":
                 report = current_report(state)
                 return self._reply(200, json.dumps(report, indent=2) + "\n", "application/json")
+            if request.path == "/api/v1/security/sbom-packages":
+                query = parse_qs(request.query)
+                namespace = query.get("namespace", [""])[0]
+                report_name = query.get("report", [""])[0]
+                package_query = query.get("q", [""])[0]
+                acquired = False
+                try:
+                    offset = int(query.get("offset", ["0"])[0])
+                    limit = int(query.get("limit", ["50"])[0])
+                    require_collected_sbom_report(state, namespace, report_name)
+                    acquired = state.sbom_lookup_slots.acquire(blocking=False)
+                    if not acquired:
+                        return self._json(
+                            429,
+                            {"error": "another SBOM package request is in progress"},
+                            {"Retry-After": "1"},
+                        )
+                    result = sbom_package_page(
+                        kubernetes_api_factory(),
+                        namespace,
+                        report_name,
+                        offset,
+                        limit,
+                        package_query,
+                    )
+                except ValueError as error:
+                    return self._json(400, {"error": str(error)})
+                except RuntimeError:
+                    LOG.exception("unable to read SBOM report %s/%s", namespace, report_name)
+                    return self._json(502, {"error": "unable to read the SBOM report from Kubernetes"})
+                finally:
+                    if acquired:
+                        state.sbom_lookup_slots.release()
+                return self._json(200, result)
             if request.path == "/api/v1/auth/me":
                 principal = auth.issue_csrf(self._session_token()) if auth else None
                 if not principal:

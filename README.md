@@ -44,7 +44,7 @@ shows the same relationships, ownership boundaries, and optional data paths.
 
 ## Project status
 
-Kubit is currently an early-stage project. The source version is `1.4.3`.
+Kubit is currently an early-stage project. The source version is `1.5.0`.
 Production use requires an explicit review of high availability, database
 recovery, provider coverage, resource sizing, and cluster security policy.
 
@@ -72,7 +72,7 @@ docker build -t kubit:dev .
 ```
 
 The public manifests and Helm chart use the release image
-`ghcr.io/lcontreras48/kubit:1.4.3`. Release tags build the application image,
+`ghcr.io/lcontreras48/kubit:1.5.0`. Release tags build the application image,
 publish immutable version tags to GHCR, package the Helm chart, and create the
 corresponding GitHub Release from this repository.
 
@@ -115,6 +115,7 @@ no sandbox name or cluster-specific interval is embedded in this project. See
 - `GET /metrics`: Prometheus metrics
 - `GET /healthz` and `GET /readyz`: health endpoints
 - `GET /api/v1/report`: inventory, compatibility, and sanitized security report
+- `GET /api/v1/security/sbom-packages`: bounded, searchable pages from a live SBOM report
 - `GET /api/v1/upgrade-readiness?kubernetes=v1.38.0`: upgrade simulation
 - `POST /api/v1/auth/login` and `POST /api/v1/auth/logout`: optional local auth
 - `GET|POST /api/v1/admin/users`: administrator-only user management

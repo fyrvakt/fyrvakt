@@ -1,7 +1,8 @@
 import os
+import re
 import time
 from datetime import datetime, timezone
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from .models import Component
 
@@ -18,16 +19,28 @@ WORKLOAD_KINDS = {"cronjob", "daemonset", "deployment", "job", "pod", "replicase
 MAX_FINDINGS_PER_REPORT = 50
 MIN_HIGH_FINDINGS_PER_REPORT = 10
 MAX_SBOM_COMPONENTS_PER_REPORT = 50
+DEFAULT_SECURITY_REPORT_PAGE_SIZE = 50
+KUBERNETES_NAME = re.compile(r"^[a-z0-9](?:[-a-z0-9.]*[a-z0-9])?$")
 
 
 class SecurityCollector:
     """Read and sanitize Trivy Operator reports without affecting compatibility."""
 
-    def __init__(self, api, stale_after_seconds: int | None = None, retry_delay_seconds: float = 1.0):
+    def __init__(
+        self,
+        api,
+        stale_after_seconds: int | None = None,
+        retry_delay_seconds: float = 1.0,
+        page_size: int | None = None,
+    ):
         self.api = api
         configured = stale_after_seconds or int(os.getenv("SECURITY_REPORT_STALE_AFTER_SECONDS", "86400"))
         self.stale_after_seconds = max(configured, 60)
         self.retry_delay_seconds = max(retry_delay_seconds, 0)
+        configured_page_size = page_size if page_size is not None else int(
+            os.getenv("SECURITY_REPORT_PAGE_SIZE", str(DEFAULT_SECURITY_REPORT_PAGE_SIZE))
+        )
+        self.page_size = min(max(configured_page_size, 1), 500)
 
     def collect(self, components: list[Component]) -> dict:
         now = datetime.now(timezone.utc)
@@ -35,16 +48,18 @@ class SecurityCollector:
         available = False
         errors = []
         for report_type, path in REPORT_PATHS.items():
+            type_reports = []
             try:
-                document = self._get_with_retry(path)
-                available = True
+                for document in self._list_pages_with_retry(path):
+                    available = True
+                    for item in document.get("items", []):
+                        parsed = self._parse(report_type, item, components, now)
+                        if parsed:
+                            type_reports.append(parsed)
             except RuntimeError as error:
                 errors.append(str(error))
                 continue
-            for item in document.get("items", []):
-                parsed = self._parse(report_type, item, components, now)
-                if parsed:
-                    reports.append(parsed)
+            reports.extend(type_reports)
 
         reports.sort(
             key=lambda item: (
@@ -57,10 +72,24 @@ class SecurityCollector:
         )
         return self._result(available, reports, components, errors, now)
 
-    def _get_with_retry(self, path: str) -> dict:
+    def _list_pages_with_retry(self, path: str):
+        # This is an opaque Kubernetes pagination cursor, not a credential.
+        continue_token = ""  # nosec B105
+        seen_tokens = set()
+        while True:
+            document = self._get_page_with_retry(path, continue_token)
+            yield document
+            continue_token = str(document.get("metadata", {}).get("continue", ""))
+            if not continue_token:
+                return
+            if continue_token in seen_tokens:
+                raise RuntimeError(f"Kubernetes API {path} repeated a pagination token")
+            seen_tokens.add(continue_token)
+
+    def _get_page_with_retry(self, path: str, continue_token: str) -> dict:
         for attempt in range(3):
             try:
-                return self.api.get(path)
+                return self.api.list_page(path, self.page_size, continue_token)
             except RuntimeError as error:
                 status = getattr(error, "status", 0)
                 if status not in {429, 500, 502, 503, 504} or attempt == 2:
@@ -114,6 +143,7 @@ class SecurityCollector:
 
         return {
             "report_type": report_type,
+            "report_name": metadata.get("name", ""),
             "namespace": namespace,
             "workload_kind": workload_kind,
             "workload_name": workload_name,
@@ -221,6 +251,84 @@ def empty_security(enabled: bool = True) -> dict:
         "errors": [],
         "summary": summary,
         "reports": [],
+    }
+
+
+def sbom_package_page(
+    api,
+    namespace: str,
+    report_name: str,
+    offset: int = 0,
+    limit: int = 50,
+    query: str = "",
+) -> dict:
+    """Return a sanitized window over every package in one collected SBOM."""
+    if not KUBERNETES_NAME.fullmatch(namespace) or not KUBERNETES_NAME.fullmatch(report_name):
+        raise ValueError("invalid SBOM report identity")
+    if offset < 0:
+        raise ValueError("offset must be zero or greater")
+    if limit not in {25, 50, 100}:
+        raise ValueError("limit must be 25, 50, or 100")
+    normalized_query = query.strip().lower()
+    if len(normalized_query) > 200:
+        raise ValueError("query cannot exceed 200 characters")
+
+    path = (
+        f"{TRIVY_API}/namespaces/{quote(namespace, safe='')}/"
+        f"sbomreports/{quote(report_name, safe='')}"
+    )
+    document = api.get(path)
+    raw_packages = document.get("report", {}).get("components", {}).get("components", [])
+    if not normalized_query:
+        packages = [
+            _sbom_package(raw_package)
+            for raw_package in raw_packages[offset:offset + limit]
+        ]
+        next_offset = offset + len(packages)
+        return {
+            "namespace": namespace,
+            "report_name": report_name,
+            "query": "",
+            "offset": offset,
+            "limit": limit,
+            "total": len(raw_packages),
+            "matched": len(raw_packages),
+            "next_offset": next_offset if next_offset < len(raw_packages) else None,
+            "packages": packages,
+        }
+
+    packages = []
+    matched = 0
+    for raw_package in raw_packages:
+        package = _sbom_package(raw_package)
+        searchable = " ".join(
+            str(value)
+            for value in (
+                package["group"],
+                package["name"],
+                package["version"],
+                package["type"],
+                package["purl"],
+                *package["licenses"],
+            )
+        ).lower()
+        if normalized_query not in searchable:
+            continue
+        if matched >= offset and len(packages) < limit:
+            packages.append(package)
+        matched += 1
+
+    next_offset = offset + len(packages)
+    return {
+        "namespace": namespace,
+        "report_name": report_name,
+        "query": query.strip(),
+        "offset": offset,
+        "limit": limit,
+        "total": len(raw_packages),
+        "matched": matched,
+        "next_offset": next_offset if next_offset < matched else None,
+        "packages": packages,
     }
 
 

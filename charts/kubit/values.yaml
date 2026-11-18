@@ -64,6 +64,8 @@ config:
   evidenceStaleAfterSeconds: 604800
   catalogEvidenceMaxAgeDays: 180
   securityReportStaleAfterSeconds: 86400
+  securityReportPageSize: 50
+  securitySbomLookupConcurrency: 1
   sourceValidation:
     timeoutSeconds: 8
     maxBytes: 1048576
