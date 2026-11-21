@@ -127,6 +127,14 @@ Providers retrieve compatibility information from official documentation and
 release metadata. If evidence cannot be verified or becomes stale, Kubit
 returns `unknown` or `stale` instead of manufacturing a green result.
 
+The proposed evolution from per-installation provider snapshots to a
+versioned, validated compatibility feed is documented in
+[`docs/evidence-feed.md`](docs/evidence-feed.md). Official upstream documents
+remain authoritative; the feed is intended to become Kubit's reproducible
+operational source of truth. Implementation is tracked in
+[GitHub issue #7](https://github.com/lcontreras48/kubit/issues/7) and is subject
+to maintainer approval.
+
 Direct providers include Kubernetes version skew, CloudNativePG, Talos,
 containerd, CoreDNS, Flannel, Kubernetes CSI sidecars, CephCSI,
 kube-state-metrics, Argo CD, Prometheus Operator, MetalLB, OpenTelemetry
