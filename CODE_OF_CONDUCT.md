@@ -1,26 +1,15 @@
 # Code of Conduct
 
-## Our pledge
+Kubit follows the
+[CNCF Code of Conduct](https://github.com/cncf/foundation/blob/main/code-of-conduct.md).
 
-We pledge to make participation in the Kubit community a harassment-free
-experience for everyone and to act in ways that contribute to an open,
-welcoming, diverse, inclusive, and healthy community.
+## Reporting
 
-## Expected behavior
+Report unacceptable behavior privately to the Kubit maintainers at
+yanick.egli@linux.com. Reports are handled promptly and with appropriate
+confidentiality.
 
-Positive behavior includes demonstrating empathy, respecting differing
-opinions, giving and accepting constructive feedback, accepting responsibility,
-and focusing on what is best for the community.
-
-Unacceptable behavior includes harassment, discriminatory language, personal
-attacks, trolling, sustained disruption, or publishing another person's private
-information without permission.
-
-## Enforcement
-
-Report unacceptable behavior privately to the maintainer through the
-repository's GitHub contact options. Reports will be reviewed promptly and
-handled with appropriate confidentiality. Maintainers may remove or reject
-contributions and restrict participation for harmful behavior.
-
-This policy is adapted from the Contributor Covenant, version 2.1.
+If you are not comfortable reporting to the maintainers, or a report is not
+resolved, you can escalate it to the
+[CNCF Code of Conduct Committee](https://www.cncf.io/conduct/procedures/) at
+conduct@cncf.io.

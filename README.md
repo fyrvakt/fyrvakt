@@ -148,6 +148,8 @@ generated Kubernetes Secrets. No default credentials are included. See
 Contributions are welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md),
 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md), and [`SECURITY.md`](SECURITY.md).
 Do not report vulnerabilities through public issues.
+Kubit follows the
+[CNCF Code of Conduct](https://github.com/cncf/foundation/blob/main/code-of-conduct.md).
 
 ## License
 
