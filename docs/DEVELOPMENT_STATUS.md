@@ -17,11 +17,13 @@ immutable, content-addressed revisions. Compatibility evaluation must always
 consume a validated local revision so a mutable page, markup change, or
 temporary upstream outage cannot break a cluster scan.
 
-The immediate increment is to define the schema and canonical encoding, retain
-immutable raw documents and multiple local generations, and build deterministic
-candidate revisions with validation and corruption tests. Runtime cutover comes
-later through a `FeedReader`, shadow comparison, and controlled promotion; the
-existing direct-provider path remains the rollback until equivalence is proven.
+The first implementation increment defines the version 1 JSON Schema,
+deterministic canonical encoding, revision digest, and structural and semantic
+validation without changing runtime provider behavior. The next increment is
+to retain immutable raw documents and multiple local generations, then build
+candidate revisions from that history. Runtime cutover comes later through a
+`FeedReader`, shadow comparison, and controlled promotion; the existing
+direct-provider path remains the rollback until equivalence is proven.
 
 Kubernetes is the central compatibility axis. Kubit first validates observable
 control-plane, node, runtime, and networking components, then evaluates every
@@ -90,10 +92,9 @@ git diff --check
 
 ## Current risks
 
-- The evidence-feed envelope, canonical JSON encoding, promotion granularity,
-  retention, and trust policy still require explicit decisions. Do not cut the
-  runtime over before schema validation, local last-known-good behavior, and
-  shadow-mode equivalence are tested.
+- Promotion granularity, retention, and trust policy still require explicit
+  decisions. Do not cut the runtime over before schema validation, local
+  last-known-good behavior, and shadow-mode equivalence are tested.
 - A packaged bootstrap feed cannot remain green indefinitely. Expired local or
   bootstrap evidence must expose `stale` and stop creating new supported claims
   even when it is the only available revision.
@@ -115,6 +116,7 @@ git diff --check
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-11-24 | Define feed schema v1 with integer-only canonical JSON and a digest over the normalized envelope excluding `feed_revision`. | Keep revision generation deterministic across languages and avoid a self-referential digest while leaving publication policy independent. |
 | 2026-11-24 | Make a validated immutable local feed revision the runtime source of truth. | Cluster scans must remain reproducible and available when upstream pages change layout or become unavailable, while every rule retains official provenance and freshness. |
 | 2026-11-24 | Make this GitHub repository the single application-development source. | Keep code, tests, generic packaging, releases, and development continuity together while private repositories only consume releases. |
 | 2026-11-24 | Keep private operational state out of this public status document. | Cluster names, Vault details, runtime findings, and environment configuration belong to private deployment repositories. |
@@ -124,10 +126,10 @@ git diff --check
 
 ## Next concrete step
 
-Start evidence-feed delivery with the design/contracts and immutable-local-
-history increments: finalize a JSON Schema and deterministic canonicalization,
-store raw source bytes by SHA-256, retain multiple generations, validate source
-digests and semantic regressions, and add golden/corruption/failure-path tests.
-Then introduce the `FeedReader` boundary and shadow comparison before any
-controlled runtime cutover. Administrator proposal decisions and new Cilium or
-Kasten providers remain follow-up work after this foundation.
+Complete the design/contracts increment, then add immutable local history:
+store raw source bytes by SHA-256, retain multiple generations, validate stored
+source digests, and preserve current runtime behavior. After that, build
+candidate revisions with semantic-regression tests and introduce the
+`FeedReader` boundary and shadow comparison before any controlled runtime
+cutover. Administrator proposal decisions and new Cilium or Kasten providers
+remain follow-up work after this foundation.

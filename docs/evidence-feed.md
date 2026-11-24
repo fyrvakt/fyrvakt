@@ -1,6 +1,6 @@
 # Compatibility evidence feed
 
-Status: proposed. Track the design decision and implementation in
+Status: implementation in progress. Track the design decision and implementation in
 [GitHub issue #7](https://github.com/lcontreras48/kubit/issues/7).
 
 Kubit evaluates cluster components against claims made by official upstream
@@ -89,8 +89,9 @@ changes.
 
 ## Feed envelope
 
-The example below documents the intended information model. It is not a final
-JSON Schema; field names may change during maintainer review.
+The version 1 contract is defined by
+[`schemas/compatibility-evidence-feed-v1.schema.json`](../schemas/compatibility-evidence-feed-v1.schema.json).
+The example below documents the same information model.
 
 ```json
 {
@@ -118,10 +119,14 @@ JSON Schema; field names may change during maintainer review.
 }
 ```
 
-The feed revision must be computed from a deterministic canonical encoding.
-Provider ordering, rule ordering, timestamps, and optional fields must have
-documented normalization rules so that identical input produces identical
-content.
+The feed revision is the SHA-256 of the canonical feed envelope with the
+`feed_revision` field omitted. Kubit's version 1 canonical encoding uses UTF-8
+JSON, lexicographically sorted object keys, no insignificant whitespace, and
+no floating-point values. Providers are sorted by `name` and each provider's
+rules are sorted by `id`; other arrays retain their declared order. Timestamps
+use RFC 3339 UTC with second precision. Optional fields are omitted rather
+than encoded as `null`. These rules make identical inputs produce identical
+content without relying on a language-specific floating-point representation.
 
 Raw documents should be stored by content digest instead of by provider name:
 
