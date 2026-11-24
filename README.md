@@ -2,6 +2,11 @@
 
 **Kubernetes Unified Baseline & Interoperability Tracker**
 
+> Development continuity: read
+> [docs/DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md) before continuing
+> implementation, and update it after every material implementation or release
+> change.
+
 Open-source Kubernetes compatibility intelligence that automatically inventories
 your cluster and validates components against official upstream evidence.
 

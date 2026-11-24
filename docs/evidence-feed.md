@@ -80,6 +80,13 @@ separate from runtime consumption. A later phase can run ingestion in GitHub
 Actions, a scheduled Kubernetes workload, or a dedicated service without
 changing the compatibility engine.
 
+Compatibility evaluation must always read a validated, immutable revision from
+local storage. Remote feed discovery and download are refresh operations: they
+may stage and promote a new local revision, but a cluster scan must never wait
+for a feed endpoint or parse a mutable upstream page. This keeps the active
+source of truth reproducible when upstream content, markup, or availability
+changes.
+
 ## Feed envelope
 
 The example below documents the intended information model. It is not a final
@@ -159,14 +166,16 @@ be configurable per provider.
 
 ## Runtime resolution and failure behavior
 
-The runtime should resolve evidence in this order:
+The refresh process should resolve candidate evidence in this order:
 
 1. a configured and verified stable feed revision;
 2. the locally persisted last-known-good feed;
 3. a bootstrap feed packaged with the Kubit release.
 
-The bootstrap feed is for initial availability, not indefinite freshness. All
-three sources use the same schema and validation path.
+It must persist and validate the selected immutable revision locally before
+promotion. The compatibility engine then reads only that promoted local
+revision. The bootstrap feed is for initial availability, not indefinite
+freshness. All three sources use the same schema and validation path.
 
 | Condition | Runtime behavior |
 | --- | --- |
