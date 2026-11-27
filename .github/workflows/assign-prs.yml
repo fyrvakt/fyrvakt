@@ -1,0 +1,24 @@
+name: Assign pull requests
+
+# pull_request_target so the token can write on PRs from forks too.
+# Safe here: no checkout and no PR-controlled input in the run step.
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions: {}
+
+jobs:
+  assign:
+    if: toJSON(github.event.pull_request.assignees) == '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Assign to yegli
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh api -X POST "repos/$REPO/issues/$PR/assignees" -f "assignees[]=yegli"
