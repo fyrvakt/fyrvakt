@@ -167,3 +167,5 @@ Kubit follows the
 ## License
 
 Kubit is licensed under the [Apache License 2.0](LICENSE).
+
+Using Fyrvakt? Please open a pull request to add your organization to [ADOPTERS.md](ADOPTERS.md).
