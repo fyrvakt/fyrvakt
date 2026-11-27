@@ -1,0 +1,47 @@
+header:
+  schema-version: 2.2.0
+  last-updated: '2026-11-27'
+  last-reviewed: '2026-11-27'
+  url: https://github.com/fyrvakt/fyrvakt/blob/main/.github/security-insights.yml
+  comment: |
+    Single-repository Security Insights file for Fyrvakt, following the
+    OpenSSF Security Insights specification.
+
+project:
+  name: Fyrvakt
+  administrators:
+    - name: Yanick Egli
+      email: yanick.egli@linux.com
+      primary: true
+  repositories:
+    - name: fyrvakt
+      url: https://github.com/fyrvakt/fyrvakt
+      comment: |
+        Core repository for Fyrvakt.
+  vulnerability-reporting:
+    reports-accepted: true
+    bug-bounty-available: false
+    policy: https://github.com/fyrvakt/fyrvakt/blob/main/SECURITY.md
+    comment: |
+      Report vulnerabilities privately through GitHub private vulnerability
+      reporting (Security tab, Report a vulnerability) or by email to the
+      maintainer. Reports are acknowledged within 3 business days. Details
+      stay private until a fix is released, or for at most 90 days.
+
+repository:
+  url: https://github.com/fyrvakt/fyrvakt
+  status: active
+  accepts-change-request: true
+  accepts-automated-change-request: false
+  core-team:
+    - name: Yanick Egli
+      email: yanick.egli@linux.com
+      primary: true
+  license:
+    url: https://github.com/fyrvakt/fyrvakt/blob/main/LICENSE
+    expression: Apache-2.0
+  security:
+    assessments:
+      self:
+        comment: |
+          Self assessment has not yet been completed.
