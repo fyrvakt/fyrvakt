@@ -13,6 +13,8 @@ project:
     - name: Yanick Egli
       email: yanick.egli@linux.com
       primary: true
+    - name: Luis Contreras
+      social: https://github.com/lcontreras48
   repositories:
     - name: fyrvakt
       url: https://github.com/fyrvakt/fyrvakt
@@ -25,7 +27,7 @@ project:
     comment: |
       Report vulnerabilities privately through GitHub private vulnerability
       reporting (Security tab, Report a vulnerability) or by email to the
-      maintainer. Reports are acknowledged within 3 business days. Details
+      maintainers. Reports are acknowledged within 3 business days. Details
       stay private until a fix is released, or for at most 90 days.
 
 repository:
@@ -37,6 +39,8 @@ repository:
     - name: Yanick Egli
       email: yanick.egli@linux.com
       primary: true
+    - name: Luis Contreras
+      social: https://github.com/lcontreras48
   license:
     url: https://github.com/fyrvakt/fyrvakt/blob/main/LICENSE
     expression: Apache-2.0
