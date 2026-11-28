@@ -1,0 +1,45 @@
+name: Bug report
+description: Report something that is not working as expected
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please search existing issues first. Do not include credentials or private cluster details. For security problems, follow SECURITY.md instead of opening a public issue.
+  - type: input
+    id: fyrvakt-version
+    attributes:
+      label: Fyrvakt version
+      placeholder: e.g. 1.5.0
+    validations:
+      required: true
+  - type: input
+    id: kubernetes-version
+    attributes:
+      label: Kubernetes version
+      placeholder: e.g. 1.31
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Install method
+      options:
+        - Helm
+        - Kustomize
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+      description: Describe the problem and the steps to reproduce it.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste relevant logs. Remove secrets and private cluster details first.
+      render: text
