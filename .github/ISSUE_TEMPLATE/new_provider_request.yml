@@ -1,0 +1,28 @@
+name: New provider request
+description: Ask for compatibility support for a new component
+title: "[Provider]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fyrvakt only accepts official evidence. Compatibility claims must link to official upstream sources, and missing or unverifiable evidence stays unknown.
+  - type: input
+    id: component
+    attributes:
+      label: Component name
+      placeholder: e.g. cert-manager
+    validations:
+      required: true
+  - type: input
+    id: upstream-source
+    attributes:
+      label: Official upstream source
+      description: Link to the official upstream page that documents supported Kubernetes versions.
+      placeholder: https://
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: Anything else that helps, such as how the component is usually installed.
